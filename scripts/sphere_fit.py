@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#import all necessary modules
 import rospy
 import math
 import numpy as np
@@ -8,106 +9,97 @@ from robot_vision_lectures.msg import SphereParams
 from geometry_msgs.msg import Point
 from cv_bridge import CvBridge
 
-# Instantiate XYZ variables for the 4 sets of data points
-x=0
-y=0
-z=0
-
-x2 = 0
-y2 = 0
-z2 = 0
-
-x3 = 0
-y3 = 0
-z3 = 0
-
-x4 = 0
-y4 = 0
-z4 = 0
-
-
-
-# Get XYZ points from XYZarray
-def get_points(Point):
-    global x
-    global y
-    global z
-    global x2
-    global y2
-    global z2
-    global x3
-    global y3
-    global z3
-    global x4
-    global y4
-    global z4
-    Point = Point.points
-    x = Point[0].x
-    y = Point[0].y
-    z = Point[0].z
-    x2 = Point[1].x
-    y2 = Point[1].y
-    z2 = Point[1].z
-    x3 = Point[2].x
-    y3 = Point[2].y
-    z3 = Point[2].z
-    x4 = Point[3].x
-    y4 = Point[3].y
-    z4 = Point[3].z
-    
-
+XYZarray2 = XYZarray()
+#function to get points
+def get_xyz(XYZarray):
+	global XYZarray2
+	XYZarray2 = XYZarray
+	
+	
 
 if __name__ == '__main__':
-	# Define the node and subcribers and publishers
+	# define the node and subcribers and publishers
 	rospy.init_node('sphere_params', anonymous = True)
-	xyz_sub = rospy.Subscriber("/xyz_cropped_ball", XYZarray, get_points)
+	# define a subscriber to get xyz of cropped ball
+	img_sub = rospy.Subscriber("/xyz_cropped_ball", XYZarray, get_xyz)
+	# define a publisher to publish position
 	sphere_pub = rospy.Publisher('/sphere_params', SphereParams, queue_size=1)
-	
-	# Set the loop frequency
+
+	# set the loop frequency
 	rate = rospy.Rate(10)
-
+	
+	x = 0
+	
+	
 	while not rospy.is_shutdown():
-        # Define Matrix A from equation A=BP
-		A = np.array([
-            [x**2 + y**2 + z**2],
-            [x2**2 + y2**2 + z2**2],
-            [x3**2 + y3**2 + z3**2],
-            [x4**2 + y4**2 + z4**2]
-        ])
-  
-        # Define Matrix B from equation A=BP
-		B = np.array([
-            [2*x, 2*y, 2*z, 1],
-            [2*x2, 2*y2, 2*z2, 1],
-            [2*x3, 2*y3, 2*z3, 1],
-            [2*x4, 2*y4, 2*z4, 1]
-        ])
+		#test to see values
 		
-        # Solve for P
-		P = np.divide(B, A)
+		if len(XYZarray2.points) == 0:
+			continue
 		
-        # Get xc, yc, zc and calculate radius from values in P
-		xc = P[0][0]
-		yc = P[1][1]
-		zc = P[2][2]
-		radius = math.sqrt(P[3][0] + xc**2 + yc**2 + zc**2)
 		
-		# Instantiate SphereParams object
+		if XYZarray2.points[x].x > 1:
+			x += 1
+			continue
+			
+		x += 1
+		
+		
+		print("-------------------------------------------------------------------------------------------------")
+		#print(XYZarray2.points[x].x)
+		#print(XYZarray2.points[x].y)
+		#print(XYZarray2.points[x].z)
+		#print(list(str(XYZarray2.points))[x])
+		
+		
+		
+		B = np.array([XYZarray2.points[x].x**2 + XYZarray2.points[x].y**2 + XYZarray2.points[x].z**2])
+		A = [[2*XYZarray2.points[x].x, 2*XYZarray2.points[x].y, 2*XYZarray2.points[x].z, 1]]
+		
+		P = np.linalg.lstsq(A, B, rcond = None)[0]
+		
+		xc = P[0]
+		yc = P[1]
+		zc = P[2]
+		radius = math.sqrt(P[3] + xc**2 + yc**2 + zc**2)
+		
+		print(xc, yc, zc, radius)
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		# Calculates the center of the ball
+		#B = [[Point.x**2 + Point.y**2 + Point.z**2],
+		     #[Point.x**2 + Point.y**2 + Point.z**2],
+		     #[Point.x**2 + Point.y**2 + Point.z**2],
+		     #[Point.x**2 + Point.y**2 + Point.z**2]]
+		    
+		#A = [[2*Point.x, 2*Point.y, 2*Point.z, 1],
+		     #[2*Point.x, 2*Point.y, 2*Point.z, 1],
+		     #[2*Point.x, 2*Point.y, 2*Point.z, 1],
+		     #[2*Point.x, 2*Point.y, 2*Point.z, 1]]
+		#Uses formula to calculate P
+		#P = np.true_divide(B, A)
+		
+		
+		#xc = P[0]
+		#yc = P[1]
+		#zc = P[2]
+		#Uses coords to calculate the radius of the ball
+		#radius = math.sqrt(P[3][0] + xc**2 + yc**2 + zc**2)
+		
+		#set up variable to publish
 		sphere_params = SphereParams()
-		
-        # Assign values to SphereParams object
-		sphere_params.xc = xc/10
-		sphere_params.yc = yc/20
-		sphere_params.zc = zc/7.7
-		sphere_params.radius = radius/100
-		
-		print(sphere_params.xc)
-		print(sphere_params.yc)
-		print(sphere_params.zc)
-		print(sphere_params.radius)
-
-        # Update publisher with the results
+		sphere_params.xc = xc
+		sphere_params.yc = yc
+		sphere_params.zc = zc
+		sphere_params.radius = radius
 		sphere_pub.publish(sphere_params)
-
-		# Pause until the next iteration			
+		# pause until the next iteration			
 		rate.sleep()
+
