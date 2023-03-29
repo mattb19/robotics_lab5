@@ -10,96 +10,71 @@ from geometry_msgs.msg import Point
 from cv_bridge import CvBridge
 
 XYZarray2 = XYZarray()
+
 #function to get points
 def get_xyz(XYZarray):
 	global XYZarray2
 	XYZarray2 = XYZarray
 	
+
+def process_data(XYZarray2):
+	B = []
+	A = []
+	# Get the list of points from the XYZarray object
+	point_list = XYZarray2.points
 	
+	# Fill A and B with all points, then solve for P
+	for point in point_list:
+		A.append([2*point.x, 2*point.y, 2*point.z, 1])
+		B.append([point.x**2 + point.y**2 + point.z**2])
+	P = np.linalg.lstsq(A, B, rcond = None)[0]
+	
+	return P
+
 
 if __name__ == '__main__':
-	# define the node and subcribers and publishers
+	# Define the node and subcribers and publishers
 	rospy.init_node('sphere_params', anonymous = True)
-	# define a subscriber to get xyz of cropped ball
+	# Define a subscriber to get xyz of cropped ball
 	img_sub = rospy.Subscriber("/xyz_cropped_ball", XYZarray, get_xyz)
-	# define a publisher to publish position
+	# Define a publisher to publish the position and radius through SphereParams
 	sphere_pub = rospy.Publisher('/sphere_params', SphereParams, queue_size=1)
 
-	# set the loop frequency
+	# Set the loop frequency
 	rate = rospy.Rate(10)
 	
-	x = 0
-	
-	
-	while not rospy.is_shutdown():
-		#test to see values
-		
+	while not rospy.is_shutdown():	
+		# Exception handling to avoid empty/null data
 		if len(XYZarray2.points) == 0:
 			continue
 		
-		
-		if XYZarray2.points[x].x > 1:
-			x += 1
+		# Exception handling to ensure data being collected is accurate
+		try:
+			P = process_data(XYZarray2)
+		except:
+			print("Invalid Data")
 			continue
-			
-		x += 1
 		
-		
-		print("-------------------------------------------------------------------------------------------------")
-		#print(XYZarray2.points[x].x)
-		#print(XYZarray2.points[x].y)
-		#print(XYZarray2.points[x].z)
-		#print(list(str(XYZarray2.points))[x])
-		
-		
-		
-		B = np.array([XYZarray2.points[x].x**2 + XYZarray2.points[x].y**2 + XYZarray2.points[x].z**2])
-		A = [[2*XYZarray2.points[x].x, 2*XYZarray2.points[x].y, 2*XYZarray2.points[x].z, 1]]
-		
-		P = np.linalg.lstsq(A, B, rcond = None)[0]
-		
+		# Collect P and determine xc, yc and zc from it
+		P = np.array(P)
 		xc = P[0]
 		yc = P[1]
 		zc = P[2]
+		# Uses np array P to calculate the radius of the ball
 		radius = math.sqrt(P[3] + xc**2 + yc**2 + zc**2)
 		
+		
+		# Display coordinates
 		print(xc, yc, zc, radius)
 		
-		
-		
-		
-		
-		
-		
-		
-		
-		# Calculates the center of the ball
-		#B = [[Point.x**2 + Point.y**2 + Point.z**2],
-		     #[Point.x**2 + Point.y**2 + Point.z**2],
-		     #[Point.x**2 + Point.y**2 + Point.z**2],
-		     #[Point.x**2 + Point.y**2 + Point.z**2]]
-		    
-		#A = [[2*Point.x, 2*Point.y, 2*Point.z, 1],
-		     #[2*Point.x, 2*Point.y, 2*Point.z, 1],
-		     #[2*Point.x, 2*Point.y, 2*Point.z, 1],
-		     #[2*Point.x, 2*Point.y, 2*Point.z, 1]]
-		#Uses formula to calculate P
-		#P = np.true_divide(B, A)
-		
-		
-		#xc = P[0]
-		#yc = P[1]
-		#zc = P[2]
-		#Uses coords to calculate the radius of the ball
-		#radius = math.sqrt(P[3][0] + xc**2 + yc**2 + zc**2)
-		
-		#set up variable to publish
+		# Set up variable to publish, publish the data
 		sphere_params = SphereParams()
 		sphere_params.xc = xc
 		sphere_params.yc = yc
 		sphere_params.zc = zc
 		sphere_params.radius = radius
 		sphere_pub.publish(sphere_params)
-		# pause until the next iteration			
+		
+		# Pause until the next iteration			
 		rate.sleep()
 
